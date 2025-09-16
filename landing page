@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GlowScape: Skincare by You</title>
+    <!-- Inter Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            overflow: hidden; /* Prevent body scroll */
+        }
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            background-color: #f7f7f7;
+            overflow: hidden;
+        }
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        #content-container {
+            width: 40%;
+            max-width: 500px;
+            height: 100vh;
+            overflow-y: auto;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.85) 100%);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: 10;
+        }
+        #navbar {
+            position: absolute;
+            top: 0;
+            right: 0;
+            z-index: 20;
+        }
+        .scrollable-section {
+            padding: 2.5rem 2rem;
+        }
+        .product-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+        .cart-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 50;
+        }
+        .cart-item-card {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <!-- Navigation Bar -->
+        <nav id="navbar" class="p-6">
+            <ul class="flex space-x-4">
+                <li><button class="text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors duration-200">Home</button></li>
+                <li><button onclick="toggleCart()" class="relative text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors duration-200">
+                    Cart (<span id="cart-count">0</span>)
+                </button></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content (Sections) -->
+        <div id="content-container">
+            <header class="p-8 pb-4 text-center">
+                <h1 class="text-4xl font-bold text-gray-800 tracking-tight">GlowScape</h1>
+                <p class="mt-2 text-lg text-gray-500">Curated for your unique radiance.</p>
+            </header>
+            
+            <div id="product-sections" class="px-8 pb-8">
+                <!-- Sections will be dynamically populated here by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Three.js Canvas Container -->
+        <div id="canvas-container">
+            <canvas id="three-canvas"></canvas>
+        </div>
+        
+        <!-- Cart Modal -->
+        <div id="cart-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 z-40 transition-opacity duration-300">
+            <div class="cart-modal w-11/12 md:w-2/3 lg:w-1/2 bg-white rounded-2xl shadow-2xl p-6 md:p-10">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800">Your Cart</h2>
+                    <button onclick="toggleCart()" class="text-gray-500 hover:text-gray-900 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div id="cart-items" class="max-h-80 overflow-y-auto space-y-4">
+                    <!-- Cart items will be populated here -->
+                </div>
+                <div id="cart-summary" class="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center">
+                    <p class="text-lg font-semibold text-gray-700">Total: <span id="cart-total" class="font-bold text-gray-900">$0.00</span></p>
+                    <button class="bg-gray-800 text-white font-bold py-3 px-6 rounded-full shadow-lg hover:bg-gray-700 transition-colors duration-200">
+                        Checkout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Product Data ---
+        const products = [
+            { id: 1, name: 'Hyaluronic Acid Serum', price: 15.99, image: 'https://placehold.co/400x400/805ad5/ffffff?text=Serum', category: 'Serums', link: 'https://www.amazon.com/dp/B08V8R9N39' },
+            { id: 2, name: 'Vitamin C Serum', price: 24.50, image: 'https://placehold.co/400x400/9b2c2c/ffffff?text=Serum', category: 'Serums', link: 'https://www.amazon.com/dp/B07R9T911F' },
+            { id: 3, name: 'Zinc & Niacinamide Serum', price: 12.00, image: 'https://placehold.co/400x400/d53f8c/ffffff?text=Serum', category: 'Serums', link: 'https://www.amazon.com/dp/B08R4N7K9P' },
+            { id: 4, name: 'SPF 50 Sunscreen', price: 20.00, image: 'https://placehold.co/400x400/2c5282/ffffff?text=Sunscreen', category: 'Sunscreens', link: 'https://www.amazon.com/dp/B01F373G4A' },
+            { id: 5, name: 'Mineral Sunscreen', price: 22.99, image: 'https://placehold.co/400x400/4c51bf/ffffff?text=Sunscreen', category: 'Sunscreens', link: 'https://www.amazon.com/dp/B09C8G1J7X' },
+            { id: 6, name: 'Gentle Foaming Wash', price: 10.50, image: 'https://placehold.co/400x400/065f46/ffffff?text=Face+Wash', category: 'Face Washes', link: 'https://www.amazon.com/dp/B07L5P493L' },
+            { id: 7, name: 'Clay & Charcoal Wash', price: 14.00, image: 'https://placehold.co/400x400/234e52/ffffff?text=Face+Wash', category: 'Face Washes', link: 'https://www.amazon.com/dp/B074T9K9N1' },
+            { id: 8, name: 'Rosewater Toner', price: 9.75, image: 'https://placehold.co/400x400/d53f8c/ffffff?text=Toner', category: 'Toners', link: 'https://www.amazon.com/dp/B07P8R4F7R' },
+            { id: 9, name: 'Niacinamide Toner', price: 11.25, image: 'https://placehold.co/400x400/5a67d8/ffffff?text=Toner', category: 'Toners', link: 'https://www.amazon.com/dp/B08Q2W8J6J' },
+            { id: 10, name: 'Hydrating Moisturizer', price: 18.00, image: 'https://placehold.co/400x400/4299e1/ffffff?text=Moisturizer', category: 'Moisturizers', link: 'https://www.amazon.com/dp/B08R4N7K9P' },
+            { id: 11, name: 'Oil-Free Moisturizer', price: 16.50, image: 'https://placehold.co/400x400/319795/ffffff?text=Moisturizer', category: 'Moisturizers', link: 'https://www.amazon.com/dp/B077977T34' },
+            { id: 12, name: 'Green Tea Face Mask', price: 7.00, image: 'https://placehold.co/400x400/48bb78/ffffff?text=Face+Mask', category: 'Face Masks', link: 'https://www.amazon.com/dp/B07C3L5T1T' },
+            { id: 13, name: 'Clay Face Mask', price: 9.50, image: 'https://placehold.co/400x400/a0aec0/ffffff?text=Face+Mask', category: 'Face Masks', link: 'https://www.amazon.com/dp/B07P5J1W8P' },
+            { id: 14, name: 'Retinol Eye Cream', price: 29.00, image: 'https://placehold.co/400x400/667eea/ffffff?text=Eye+Cream', category: 'Eye Creams', link: 'https://www.amazon.com/dp/B07R9T911F' },
+            { id: 15, name: 'Collagen Eye Cream', price: 25.00, image: 'https://placehold.co/400x400/8b5cf6/ffffff?text=Eye+Cream', category: 'Eye Creams', link: 'https://www.amazon.com/dp/B09C8G1J7X' },
+            { id: 16, name: 'Charcoal Nose Strips', price: 8.00, image: 'https://placehold.co/400x400/1a202c/ffffff?text=Nose+Strips', category: 'Nose Strips', link: 'https://www.amazon.com/dp/B085V3G7B3' },
+            { id: 17, name: 'Pore Cleansing Strips', price: 8.00, image: 'https://placehold.co/400x400/38a169/ffffff?text=Nose+Strips', category: 'Nose Strips', link: 'https://www.amazon.com/dp/B07P5J1W8P' },
+            { id: 18, name: 'Overnight Recovery Cream', price: 35.00, image: 'https://placehold.co/400x400/4c51bf/ffffff?text=Night+Cream', category: 'Night Creams', link: 'https://www.amazon.com/dp/B077977T34' },
+            { id: 19, name: 'Revitalizing Night Cream', price: 32.50, image: 'https://placehold.co/400x400/5a67d8/ffffff?text=Night+Cream', category: 'Night Creams', link: 'https://www.amazon.com/dp/B08V8R9N39' },
+            { id: 20, name: 'Shea Butter Body Lotion', price: 12.00, image: 'https://placehold.co/400x400/d69e2e/ffffff?text=Body+Lotion', category: 'Body Lotions', link: 'https://www.amazon.com/dp/B085V3G7B3' },
+            { id: 21, name: 'Coconut & Vanilla Lotion', price: 11.00, image: 'https://placehold.co/400x400/f6ad55/ffffff?text=Body+Lotion', category: 'Body Lotions', link: 'https://www.amazon.com/dp/B07P8R4F7R' }
+        ];
+
+        let cart = {};
+
+        // --- DOM Elements ---
+        const productSectionsEl = document.getElementById('product-sections');
+        const cartCountEl = document.getElementById('cart-count');
+        const cartModalEl = document.getElementById('cart-modal');
+        const cartItemsEl = document.getElementById('cart-items');
+        const cartTotalEl = document.getElementById('cart-total');
+
+        // --- UI Functions ---
+        function toggleCart() {
+            cartModalEl.classList.toggle('hidden');
+        }
+
+        function updateCartUI() {
+            let total = 0;
+            let count = 0;
+            cartItemsEl.innerHTML = '';
+
+            for (const id in cart) {
+                const item = cart[id];
+                const itemTotal = item.price * item.quantity;
+                total += itemTotal;
+                count += item.quantity;
+                
+                const itemCard = document.createElement('div');
+                itemCard.className = 'cart-item-card flex items-center bg-gray-50 p-4 rounded-xl shadow-sm';
+                itemCard.innerHTML = `
+                    <img src="${item.image}" alt="${item.name}" class="w-16 h-16 rounded-lg object-cover">
+                    <div class="ml-4 flex-1">
+                        <h4 class="font-semibold text-gray-800">${item.name}</h4>
+                        <p class="text-sm text-gray-500">Quantity: ${item.quantity}</p>
+                        <p class="font-bold text-gray-900">$${itemTotal.toFixed(2)}</p>
+                    </div>
+                    <button onclick="removeFromCart(${item.id})" class="ml-4 text-gray-400 hover:text-red-500 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-1 1v1H5a1 1 0 000 2h1v10a2 2 0 002 2h4a2 2 0 002-2V6h1a1 1 0 100-2h-3V3a1 1 0 00-1-1H9zm1 2a1 1 0 00-1 1v9a1 1 0 102 0V5a1 1 0 00-1-1z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                `;
+                cartItemsEl.appendChild(itemCard);
+            }
+            
+            cartCountEl.textContent = count;
+            cartTotalEl.textContent = $${total.toFixed(2)};
+            if (count === 0) {
+                cartItemsEl.innerHTML = '<p class="text-center text-gray-500">Your cart is empty.</p>';
+            }
+        }
+
+        function addToCart(productId) {
+            const product = products.find(p => p.id === productId);
+            if (!product) return;
+
+            if (cart[productId]) {
+                cart[productId].quantity++;
+            } else {
+                cart[productId] = { ...product, quantity: 1 };
+            }
+            updateCartUI();
+        }
+
+        function removeFromCart(productId) {
+            if (cart[productId]) {
+                delete cart[productId];
+                updateCartUI();
+            }
+        }
+        
+        // --- Dynamic Content Generation ---
+        function createProductSections() {
+            const categories = [...new Set(products.map(p => p.category))];
+            
+            categories.forEach(category => {
+                const section = document.createElement('section');
+                section.id = category.toLowerCase().replace(/\s/g, '-');
+                section.className = 'scrollable-section';
+                section.innerHTML = `
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">${category}</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6"></div>
+                `;
+                const productGrid = section.querySelector('div');
+                const categoryProducts = products.filter(p => p.category === category);
+                
+                categoryProducts.forEach(product => {
+                    const card = document.createElement('div');
+                    card.className = 'product-card bg-white rounded-xl shadow-lg p-4 flex flex-col items-center text-center border border-gray-100';
+                    card.innerHTML = `
+                        <a href="${product.link}" target="_blank" class="block w-full">
+                            <img src="${product.image}" alt="${product.name}" class="w-full h-auto rounded-lg mb-4">
+                        </a>
+                        <h3 class="text-lg font-semibold text-gray-800">${product.name}</h3>
+                        <p class="text-xl font-bold text-gray-900 mt-2">$${product.price.toFixed(2)}</p>
+                        <button onclick="addToCart(${product.id})" class="mt-4 w-full bg-gray-800 text-white py-2 rounded-full shadow-lg hover:bg-gray-700 transition-colors duration-200">
+                            Add to Cart
+                        </button>
+                    `;
+                    productGrid.appendChild(card);
+                });
+                
+                productSectionsEl.appendChild(section);
+            });
+        }
+        
+        // --- 3D Scene (Three.js) ---
+        let scene, camera, renderer, mouse, productGeometry, sections;
+
+        function init3D() {
+            const canvas = document.getElementById('three-canvas');
+            const canvasContainer = document.getElementById('canvas-container');
+
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf0f0f5);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(75, canvasContainer.clientWidth / canvasContainer.clientHeight, 0.1, 1000);
+            camera.position.z = 5;
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+            renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight.position.set(0, 10, 5);
+            scene.add(directionalLight);
+
+            // Create 3D product representations (simple floating spheres)
+            const categories = [...new Set(products.map(p => p.category))];
+            sections = categories.map((cat, index) => {
+                const geometry = new THREE.SphereGeometry(0.8, 32, 32);
+                const material = new THREE.MeshLambertMaterial({ color: new THREE.Color(Math.random() * 0xffffff) });
+                const mesh = new THREE.Mesh(geometry, material);
+                
+                const angle = (index / categories.length) * Math.PI * 2;
+                const radius = 3;
+                mesh.position.x = Math.cos(angle) * radius;
+                mesh.position.y = Math.sin(angle) * radius;
+                mesh.position.z = -5;
+                
+                scene.add(mesh);
+                return { mesh, category: cat };
+            });
+
+            // Handle window resizing
+            window.addEventListener('resize', onWindowResize, false);
+
+            // Mouse interaction for camera control
+            mouse = new THREE.Vector2();
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
+            
+            canvas.addEventListener('mousedown', (event) => {
+                isDragging = true;
+            });
+            
+            window.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+
+            canvas.addEventListener('mousemove', (event) => {
+                if (!isDragging) return;
+                const deltaMove = {
+                    x: event.offsetX - previousMousePosition.x,
+                    y: event.offsetY - previousMousePosition.y
+                };
+                
+                const rotationSpeed = 0.005;
+                scene.rotation.y += deltaMove.x * rotationSpeed;
+                scene.rotation.x += deltaMove.y * rotationSpeed;
+
+                previousMousePosition = {
+                    x: event.offsetX,
+                    y: event.offsetY
+                };
+            });
+            
+            // Touch events for camera control
+            canvas.addEventListener('touchstart', (event) => {
+                isDragging = true;
+                const touch = event.touches[0];
+                previousMousePosition.x = touch.clientX;
+                previousMousePosition.y = touch.clientY;
+            });
+
+            canvas.addEventListener('touchmove', (event) => {
+                if (!isDragging) return;
+                const touch = event.touches[0];
+                const deltaMove = {
+                    x: touch.clientX - previousMousePosition.x,
+                    y: touch.clientY - previousMousePosition.y
+                };
+                
+                const rotationSpeed = 0.005;
+                scene.rotation.y += deltaMove.x * rotationSpeed;
+                scene.rotation.x += deltaMove.y * rotationSpeed;
+
+                previousMousePosition.x = touch.clientX;
+                previousMousePosition.y = touch.clientY;
+            });
+
+            canvas.addEventListener('touchend', () => {
+                isDragging = false;
+            });
+
+            // Start animation loop
+            animate();
+        }
+
+        function onWindowResize() {
+            const canvasContainer = document.getElementById('canvas-container');
+            camera.aspect = canvasContainer.clientWidth / canvasContainer.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Animate the product representations
+            sections.forEach(s => {
+                s.mesh.rotation.y += 0.005;
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        // --- Main Initialization ---
+        window.onload = function() {
+            createProductSections();
+            updateCartUI();
+            init3D();
+        };
+
+    </script>
+</body>
+</html>
